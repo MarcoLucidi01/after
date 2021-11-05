@@ -33,10 +33,9 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 
-#define VERSION "0.1.0"
+#define VERSION "0.2.0"
 
 static void     die(const char *, ...);
-static void     dieerrno(const char *);
 static pid_t    parsepid(const char *);
 
 static const char *progname = "";
@@ -60,19 +59,19 @@ int main(int argc, char **argv)
         /* currently there is no glibc wrapper for this system call */
         int pidfd = syscall(SYS_pidfd_open, pid, 0);
         if (pidfd < 0)
-                dieerrno("pidfd_open");
+                die("pidfd_open(%d): %s", pid, strerror(errno));
 
         struct pollfd pollfd = { .fd = pidfd, .events = POLLIN, .revents = 0 };
         int ready = poll(&pollfd, 1, -1);
         close(pidfd);
         if (ready < 0)
-                dieerrno("poll");
+                die("poll({%d, POLLIN}): %s", pidfd, strerror(errno));
         if (ready != 1 || ! (pollfd.revents & POLLIN))
-                die("pidfd not ready after poll(POLLIN)");
+                die("poll({%d, POLLIN}): pidfd not ready", pidfd);
 
         if (argc > 2) {
                 execvp(argv[2], argv + 2);
-                dieerrno("execvp");
+                die("execvp(%s): %s", argv[2], strerror(errno));
         }
 }
 
@@ -86,11 +85,6 @@ static void die(const char *reason, ...)
         fprintf(stderr, "\n");
 
         exit(EXIT_FAILURE);
-}
-
-static void dieerrno(const char *funcname)
-{
-        die("%s: %s", funcname, strerror(errno));
 }
 
 static pid_t parsepid(const char *s)
